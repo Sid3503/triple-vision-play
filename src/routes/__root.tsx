@@ -6,6 +6,7 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  useRouterState,
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
@@ -108,11 +109,51 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function SiteNav() {
+  const { location } = useRouterState();
+  const path = location.pathname;
+
+  const tabs = [
+    { to: "/", label: "StoolNetTriple", sub: "Triple Attention CNN" },
+    { to: "/resnet-cv", label: "ResNet50 5-Fold CV", sub: "Cross-validation pipeline" },
+  ] as const;
+
+  return (
+    <nav
+      className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur-sm"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <div className="mx-auto flex max-w-[1060px] items-end gap-0 px-5">
+        {tabs.map((t) => {
+          const active = t.to === "/" ? path === "/" : path.startsWith(t.to);
+          return (
+            <Link
+              key={t.to}
+              to={t.to}
+              className="group flex flex-col gap-px border-b-2 px-4 py-3 transition-colors"
+              style={{
+                borderColor: active ? "var(--foreground)" : "transparent",
+                color: active ? "var(--foreground)" : "var(--ink-mute)",
+              }}
+            >
+              <span className="font-display text-[13px] font-bold leading-none">{t.label}</span>
+              <span className="font-mono text-[9px] uppercase tracking-[.06em] opacity-70">
+                {t.sub}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
+      <SiteNav />
       <Outlet />
     </QueryClientProvider>
   );

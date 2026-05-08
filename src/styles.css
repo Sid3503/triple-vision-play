@@ -1,12 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Quicksand:wght@300..700&family=Short+Stack&display=swap');
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
 
 @theme inline {
-  --font-display: 'Syne', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Montserrat', system-ui, sans-serif;
+  --font-mono: 'Quicksand', system-ui, sans-serif;
+  --font-sans: 'Quicksand', system-ui, sans-serif;
+  --font-accent: 'Short Stack', cursive;
   --color-pos: var(--pos);
   --color-pos-soft: var(--pos-soft);
   --color-pos-deep: var(--pos-deep);
@@ -185,5 +186,49 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
   }
+}
+
+@layer utilities {
+  .font-accent {
+    font-family: 'Short Stack', cursive;
+    font-weight: 400;
+    font-style: normal;
+  }
+}
+
+/* ── ResNet CV Pipeline tokens + animations ─────────────────── */
+:root {
+  --cv-frozen:    #6B6A62;
+  --cv-frozen-bg: #EEEDE8;
+  --cv-frozen-bd: #C2C1B8;
+  --cv-ft:        #1D9E75;
+  --cv-ft-bg:     #E4F9F1;
+  --cv-ft-bd:     #8ACFC0;
+  --cv-head:      #7F77DD;
+  --cv-head-bg:   #EDEAFB;
+  --cv-head-bd:   #BAB5F0;
+  --cv-tta:       #4E8B1A;
+  --cv-tta-bg:    #EDF6DF;
+  --cv-tta-bd:    #B5D98A;
+  --cv-ens:       #0D3D35;
+  --cv-ens-t:     #F5EED8;
+}
+
+@keyframes cv-pulse-ft {
+  0%,100% { box-shadow: none; }
+  50%      { box-shadow: 0 0 0 3px rgba(29,158,117,.28), 0 0 18px rgba(29,158,117,.45); }
+}
+@keyframes cv-pulse-hd {
+  0%,100% { box-shadow: none; }
+  50%      { box-shadow: 0 0 0 3px rgba(127,119,221,.28), 0 0 18px rgba(127,119,221,.45); }
+}
+.cv-pulse-ft { animation: cv-pulse-ft .88s ease-in-out 2; }
+.cv-pulse-hd { animation: cv-pulse-hd .88s ease-in-out 2; }
+
+.cv-frozen-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,transparent,transparent 3px,rgba(0,0,0,.07) 3px,rgba(0,0,0,.07) 6px
+  ) !important;
 }

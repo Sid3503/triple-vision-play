@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+import DryRunPanel from "@/components/DryRunPanel";
 
 type Backbone = "dense" | "resnet";
 type BranchKey = "pos" | "chan" | "type";
@@ -63,6 +64,29 @@ const BRANCHES: {
     tip: "Texture + ordinal continuity. Multi-scale convs and a sigmoid gate enforce ordering across BSS Types 1–7.",
   },
 ];
+
+const STEP_TIPS: Record<BranchKey, string[]> = {
+  pos: [
+    "Three 1×1 convolutions project the feature map into Query, Key, and Value spaces — mirroring transformer self-attention.",
+    "Every spatial position attends to every other: Softmax(QKᵀ/√d) produces an (H·W)×(H·W) map of where to look.",
+    "Attention weights redistribute information from Values — positions with high similarity borrow features from each other.",
+    "γ starts at 0.1 so early training barely changes backbone features; the module learns gradually via backprop.",
+  ],
+  chan: [
+    "H×W spatial dims are flattened so each channel becomes a vector of HW activations for comparison.",
+    "C×C matrix: entry [i,j] measures how co-activated channels i and j are across all spatial positions.",
+    "Channels that activate together amplify each other — the network learns which feature types are semantically related.",
+    "Same learnable γ residual as Position branch — prevents disrupting well-trained backbone features early on.",
+  ],
+  type: [
+    "3×3, 5×5, 7×7 parallel convolutions capture texture at fine, medium, and coarse granularity simultaneously.",
+    "Squeeze-and-Excite: global avg pool → FC → sigmoid — recalibrates how much each scale contributes.",
+    "Lightweight depthwise-separable conv analyses local texture patterns at low compute cost.",
+    "Sigmoid gate enforces ordinal structure: BSS 1→7 is a continuum (hard→soft), predictions should respect this ordering.",
+    "Small 2-layer MLP further refines the fused multi-scale features before residual addition.",
+    "Final γ residual blend — same mechanism as Pos and Chan branches.",
+  ],
+};
 
 const HEADS = [
   {
@@ -345,7 +369,7 @@ export default function StoolNetDiagram() {
         {/* Header */}
         <header className="mb-8 flex flex-wrap items-end justify-between gap-6 border-b border-border pb-6">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft">
+            <div className="font-accent text-[11px] uppercase tracking-[0.14em] text-ink-soft">
               Architecture Diagram · Interactive
             </div>
             <h1 className="mt-2 font-display text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
@@ -367,6 +391,22 @@ export default function StoolNetDiagram() {
                 <button
                   key={k}
                   onClick={() => setBackbone(k)}
+                  onMouseEnter={(e) =>
+                    showTip(
+                      e,
+                      <>
+                        <strong className="font-display text-white">{BACKBONE[k].name}</strong>
+                        <span className="mt-1 block text-[#cfcfd6]">
+                          {k === "dense"
+                            ? "121-layer densely-connected CNN. Every layer receives feature maps from all preceding layers, promoting feature reuse. Lighter (1024-dim) but highly expressive."
+                            : "50-layer residual CNN. Skip connections prevent vanishing gradients and enable very deep training. Wider feature space (2048-dim) suits fine-grained texture tasks."}
+                        </span>
+                        <span className="mt-1 block text-white">Output dim: {BACKBONE[k].dim}</span>
+                      </>,
+                    )
+                  }
+                  onMouseMove={moveTip}
+                  onMouseLeave={hideTip}
                   className="relative rounded-full px-4 py-2 font-medium transition-colors"
                 >
                   {backbone === k && (
@@ -388,6 +428,11 @@ export default function StoolNetDiagram() {
             </div>
             <button
               onClick={() => setMathsOpen(true)}
+              onMouseEnter={(e) =>
+                showTip(e, <span className="block max-w-[200px] leading-snug">Open the equations panel — each formula includes a plain-English explanation and variable guide.</span>)
+              }
+              onMouseMove={moveTip}
+              onMouseLeave={hideTip}
               className="rounded-full border border-border bg-surface px-4 py-2 font-mono text-xs text-foreground transition-all hover:border-foreground hover:bg-foreground hover:text-background"
             >
               Show Maths →
@@ -478,7 +523,7 @@ export default function StoolNetDiagram() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="relative w-full max-w-[1180px] rounded-3xl border border-dashed border-border bg-gradient-to-b from-surface to-surface-soft p-6 pt-8"
             >
-              <div className="absolute -top-3 left-6 bg-background px-2.5 font-mono text-[11px] uppercase tracking-[0.12em] text-ink-soft">
+              <div className="absolute -top-3 left-6 bg-background px-2.5 font-accent text-[11px] uppercase tracking-[0.12em] text-ink-soft">
                 Triple Attention Module · 3 parallel branches
               </div>
 
@@ -536,7 +581,7 @@ export default function StoolNetDiagram() {
                                 : "var(--type)",
                         }}
                       >
-                        <div className="absolute right-3 top-3 rounded-full bg-surface-soft px-2 py-0.5 font-mono text-[10px] text-ink-soft">
+                        <div className="absolute right-3 top-3 rounded-full bg-surface-soft px-2 py-0.5 font-accent text-[10px] text-ink-soft">
                           {b.index}
                         </div>
                         <h3
@@ -565,7 +610,17 @@ export default function StoolNetDiagram() {
                                 delay: 0.45 + i * 0.08 + j * 0.04,
                                 duration: 0.3,
                               }}
-                              className="rounded-md bg-surface-soft px-2.5 py-1.5 font-mono text-[11.5px] leading-snug"
+                              onMouseEnter={(e) =>
+                                showTip(
+                                  e,
+                                  <span className="block max-w-[260px] leading-snug">
+                                    {STEP_TIPS[b.key][j]}
+                                  </span>,
+                                )
+                              }
+                              onMouseMove={moveTip}
+                              onMouseLeave={hideTip}
+                              className="cursor-help rounded-md bg-surface-soft px-2.5 py-1.5 font-mono text-[11.5px] leading-snug"
                               style={{
                                 borderLeft: `3px solid ${
                                   b.key === "pos"
@@ -698,19 +753,25 @@ export default function StoolNetDiagram() {
           </div>
         </div>
 
+        {/* Dry Run */}
+        <DryRunPanel backbone={backbone} />
+
         {/* Legend */}
         <footer className="mt-10 flex flex-wrap items-center gap-4 border-t border-border pt-5 font-mono text-[11px] text-ink-soft">
-          <Swatch c="var(--pos)" l="Position Attention" />
-          <Swatch c="var(--chan)" l="Channel Attention" />
-          <Swatch c="var(--type)" l="Type Attention" />
-          <Swatch c="var(--fusion)" l="Fusion" />
-          <Swatch c="var(--head-type)" l="Type Head" />
-          <Swatch c="var(--head-shape)" l="Shape Head" />
-          <Swatch c="var(--head-color)" l="Color Head" />
+          <Swatch c="var(--pos)" l="Position Attention" tip="Spatial self-attention branch: each pixel attends to every other pixel." onEnter={showTip} onMove={moveTip} onLeave={hideTip} />
+          <Swatch c="var(--chan)" l="Channel Attention" tip="Channel correlation branch: re-weights feature channels by co-activation." onEnter={showTip} onMove={moveTip} onLeave={hideTip} />
+          <Swatch c="var(--type)" l="Type Attention" tip="Multi-scale texture branch with sigmoid ordinal gate for BSS 1–7." onEnter={showTip} onMove={moveTip} onLeave={hideTip} />
+          <Swatch c="var(--fusion)" l="Fusion" tip="Equal-weight average of all three attention outputs: F=(P+C+T)/3." onEnter={showTip} onMove={moveTip} onLeave={hideTip} />
+          <Swatch c="var(--head-type)" l="Type Head" tip="Primary head (512→256→7). Focal Loss ×2.0 to handle class imbalance across BSS Types 1–7." onEnter={showTip} onMove={moveTip} onLeave={hideTip} />
+          <Swatch c="var(--head-shape)" l="Shape Head" tip="Auxiliary head (256→4): Constipation / Normal / Mild Diarrhea / Liquid. CrossEntropy ×0.8." onEnter={showTip} onMove={moveTip} onLeave={hideTip} />
+          <Swatch c="var(--head-color)" l="Color Head" tip="Auxiliary head (128→2): Brown / Yellow. Low-weight (CrossEntropy ×0.1) regulariser." onEnter={showTip} onMove={moveTip} onLeave={hideTip} />
           <span className="ml-auto">
             L = 2.0·L_type + 0.8·L_shape + 0.1·L_color
           </span>
         </footer>
+
+        {/* References */}
+        <ReferencesSection />
       </div>
 
       {/* Maths panel */}
@@ -740,27 +801,81 @@ export default function StoolNetDiagram() {
               <h2 className="font-display text-2xl font-extrabold">
                 Key Equations
               </h2>
-              <div className="mb-5 mt-1 font-mono text-[11px] uppercase tracking-[0.08em] text-ink-soft">
+              <div className="mb-5 mt-1 font-accent text-[11px] uppercase tracking-[0.08em] text-ink-soft">
                 Triple Attention · Multi-task Loss
               </div>
-              <Eq title="Position Attention" color="var(--pos)">
-                Attention(Q,K,V) = Softmax(QKᵀ / √d) · V
-              </Eq>
-              <Eq title="Channel Attention" color="var(--chan)">
-                A_c = Softmax(C · Cᵀ) ; X′ = A_c · X
-              </Eq>
-              <Eq title="Type Attention" color="var(--type)">
-                MS = Σ_k SE(Conv_k(x)), k ∈ {`{3,5,7}`}
-              </Eq>
-              <Eq title="Residual (all branches)" color="var(--foreground)">
-                out = γ · attention(x) + x, γ₀ = 0.1
-              </Eq>
-              <Eq title="Fusion" color="var(--fusion)">
-                F = (P + C + T) / 3
-              </Eq>
-              <Eq title="Combined Loss" color="var(--head-type)">
-                L = 2.0·L_type + 0.8·L_shape + 0.1·L_color
-              </Eq>
+              <EqCard
+                title="Position Attention"
+                color="var(--pos)"
+                formula="Attention(Q,K,V) = Softmax(QKᵀ / √d) · V"
+                plain="Each spatial position in the feature map queries every other position. The dot-product similarity (scaled by √d to prevent vanishing gradients) is normalised via Softmax, then used to blend Values — so pixels learn to gather context from semantically similar regions."
+                vars={[
+                  { sym: "Q", def: "query projection" },
+                  { sym: "K", def: "key projection" },
+                  { sym: "V", def: "value projection" },
+                  { sym: "d", def: "channel dim" },
+                ]}
+                io="[B,C,H,W] → [B,C,H,W]"
+              />
+              <EqCard
+                title="Channel Attention"
+                color="var(--chan)"
+                formula="A_c = Softmax(C · Cᵀ)  →  X′ = A_c · X"
+                plain="Feature channels are compared against each other. The resulting C×C correlation matrix encodes which channels co-activate. Multiplying by X re-weights each channel by how much it correlates with all others — boosting semantically related features."
+                vars={[
+                  { sym: "C", def: "feature map reshaped [C × HW]" },
+                  { sym: "A_c", def: "C×C correlation matrix" },
+                  { sym: "X′", def: "re-weighted output" },
+                ]}
+                io="[B,C,H,W] → [B,C,H,W]"
+              />
+              <EqCard
+                title="Type Attention"
+                color="var(--type)"
+                formula="MS = Σₖ SE(Convₖ(x)),  k ∈ {3, 5, 7}"
+                plain="Three parallel convolutions capture texture at different scales (fine/medium/coarse). Each scale is recalibrated by a Squeeze-and-Excite block. A sigmoid continuity gate then enforces that BSS Types 1–7 form an ordinal sequence — hard stool to liquid."
+                vars={[
+                  { sym: "Convₖ", def: "conv with kernel k" },
+                  { sym: "SE", def: "squeeze-excite block" },
+                  { sym: "σ", def: "sigmoid continuity gate" },
+                ]}
+                io="[B,C,H,W] → [B,C,H,W]"
+              />
+              <EqCard
+                title="Residual (all branches)"
+                color="var(--foreground)"
+                formula="out = γ · attention(x) + x,   γ₀ = 0.1"
+                plain="Each attention branch blends its output back with the original input. γ is a learnable scalar initialised at 0.1 — early training barely alters backbone features, letting the attention modules warm up gradually without destabilising pretrained weights."
+                vars={[
+                  { sym: "γ", def: "learnable scalar (init 0.1)" },
+                  { sym: "x", def: "backbone feature map" },
+                ]}
+                io="[B,C,H,W] → [B,C,H,W]"
+              />
+              <EqCard
+                title="Fusion"
+                color="var(--fusion)"
+                formula="F = (P + C + T) / 3"
+                plain="The three attention outputs are averaged element-wise with equal weights. Simple averaging lets the loss function — via backprop — determine which branch contributes most, rather than imposing a fixed weighting."
+                vars={[
+                  { sym: "P", def: "position branch output" },
+                  { sym: "C", def: "channel branch output" },
+                  { sym: "T", def: "type branch output" },
+                ]}
+                io="3 × [B,C,H,W] → [B,C,H,W]"
+              />
+              <EqCard
+                title="Combined Loss"
+                color="var(--head-type)"
+                formula="L = 2.0·L_type + 0.8·L_shape + 0.1·L_color"
+                plain="BSS type is the primary clinical goal (×2 weight, Focal Loss to handle class imbalance). Stool shape is a useful proxy task (×0.8). Color is auxiliary — it prevents overfitting and adds a weak regularisation signal (×0.1). All three tasks jointly train the shared attention features."
+                vars={[
+                  { sym: "L_type", def: "Focal Loss γ=2.0, ls=0.1" },
+                  { sym: "L_shape", def: "CrossEntropy" },
+                  { sym: "L_color", def: "CrossEntropy" },
+                ]}
+                io="logits + labels → scalar"
+              />
             </motion.aside>
           </>
         )}
@@ -821,37 +936,197 @@ const Node = ({
   );
 };
 
-const Swatch = ({ c, l }: { c: string; l: string }) => (
-  <span className="inline-flex items-center gap-1.5">
-    <span
-      className="inline-block h-2.5 w-2.5 rounded-sm"
-      style={{ background: c }}
-    />
+const Swatch = ({
+  c, l, tip, onEnter, onMove, onLeave,
+}: {
+  c: string; l: string;
+  tip?: string;
+  onEnter?: (e: React.MouseEvent, node: React.ReactNode) => void;
+  onMove?: (e: React.MouseEvent) => void;
+  onLeave?: () => void;
+}) => (
+  <span
+    className="inline-flex cursor-help items-center gap-1.5"
+    onMouseEnter={tip && onEnter ? (e) => onEnter(e, <span className="block max-w-[220px] leading-snug">{tip}</span>) : undefined}
+    onMouseMove={onMove}
+    onMouseLeave={onLeave}
+  >
+    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: c }} />
     {l}
   </span>
 );
 
-const Eq = ({
+const REFERENCES = [
+  {
+    index: "[1]",
+    authors: "Zhang et al.",
+    year: "CVPRW 2022",
+    title: "Human Stools Classification for Gastrointestinal Health Based on an Improved ResNet18 Model with Dual Attention Mechanism",
+    venue: "CVPR Workshop on Computer Vision for Physiological Measurement",
+    url: "https://openaccess.thecvf.com/content/CVPR2022W/CVPM/papers/Zhang_Human_Stools_Classification_for_Gastrointestinal_Health_Based_on_an_Improved_ResNet18_Model_with_Dual_Attention_Mechanism_CVPRW_2022_paper.pdf",
+    color: "var(--pos)",
+    note: "Dual attention (spatial + channel) on ResNet18 for BSS classification — direct architectural inspiration for StoolNetTriple.",
+  },
+  {
+    index: "[2]",
+    authors: "Badrinarayanan et al.",
+    year: "IEEE TPAMI 2017",
+    title: "SegNet: A Deep Convolutional Encoder-Decoder Architecture for Image Segmentation",
+    venue: "arXiv:1511.00561",
+    url: "https://arxiv.org/abs/1511.00561",
+    color: "var(--chan)",
+    note: "Encoder-decoder segmentation architecture whose pooling-index upsampling influenced feature-map preservation strategies used here.",
+  },
+  {
+    index: "[3]",
+    authors: "Norgeot et al.",
+    year: "Duke Scholars",
+    title: "Stool Image Analysis for Precision Health Monitoring by Smart Toilets",
+    venue: "Duke University Scholars",
+    url: "https://scholars.duke.edu/publication/1590038",
+    color: "var(--type)",
+    note: "Clinical motivation for automated stool analysis — demonstrates real-world feasibility and the diagnostic value of BSS classification at scale.",
+  },
+];
+
+function ReferencesSection() {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.2 }}
+      className="mt-12 border-t border-border pt-8"
+    >
+      <div className="mb-5 flex items-baseline gap-3">
+        <h2 className="font-display text-xl font-extrabold">References</h2>
+        <span className="font-accent text-[11px] uppercase tracking-[0.12em] text-ink-soft">
+          Related papers
+        </span>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
+        {REFERENCES.map((ref) => (
+          <motion.a
+            key={ref.index}
+            href={ref.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            whileHover={{ y: -3 }}
+            className="group relative flex flex-col gap-3 overflow-hidden rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-xl"
+            style={{ borderColor: `${ref.color}40` }}
+          >
+            {/* Top accent bar */}
+            <div
+              className="absolute left-5 right-5 top-0 h-[3px] rounded-b"
+              style={{ background: ref.color }}
+            />
+
+            {/* Index + year badge */}
+            <div className="mt-1 flex items-center justify-between">
+              <span
+                className="font-accent text-[11px] font-bold"
+                style={{ color: ref.color }}
+              >
+                {ref.index}
+              </span>
+              <span
+                className="rounded-full px-2 py-0.5 font-mono text-[9px]"
+                style={{ background: `${ref.color}15`, color: ref.color }}
+              >
+                {ref.year}
+              </span>
+            </div>
+
+            {/* Title */}
+            <p className="font-display text-[13px] font-bold leading-snug group-hover:underline decoration-1 underline-offset-2"
+              style={{ color: ref.color }}>
+              {ref.title}
+            </p>
+
+            {/* Authors + venue */}
+            <div className="flex flex-col gap-0.5">
+              <span className="font-mono text-[10px] font-semibold" style={{ color: "var(--foreground)" }}>
+                {ref.authors}
+              </span>
+              <span className="font-mono text-[10px]" style={{ color: "var(--ink-mute)" }}>
+                {ref.venue}
+              </span>
+            </div>
+
+            {/* Note */}
+            <p className="mt-auto border-t border-dashed border-border pt-3 font-mono text-[10.5px] leading-relaxed"
+              style={{ color: "var(--ink-soft)" }}>
+              {ref.note}
+            </p>
+
+            {/* Link indicator */}
+            <div className="flex items-center gap-1 font-mono text-[10px]" style={{ color: ref.color }}>
+              <span>Read paper</span>
+              <span className="transition-transform group-hover:translate-x-0.5">→</span>
+            </div>
+          </motion.a>
+        ))}
+      </div>
+    </motion.section>
+  );
+}
+
+const EqCard = ({
   title,
   color,
-  children,
+  formula,
+  plain,
+  vars,
+  io,
 }: {
   title: string;
   color: string;
-  children: React.ReactNode;
+  formula: string;
+  plain: string;
+  vars: { sym: string; def: string }[];
+  io: string;
 }) => (
   <motion.div
     initial={{ opacity: 0, x: 10 }}
     animate={{ opacity: 1, x: 0 }}
     transition={{ duration: 0.3 }}
-    className="mb-4"
+    className="mb-4 overflow-hidden rounded-xl border"
+    style={{ borderColor: `${color}35` }}
   >
-    <h4 className="mb-1.5 font-display text-[13px] font-bold">{title}</h4>
     <div
-      className="overflow-x-auto rounded-md bg-surface-soft px-3 py-2.5 font-mono text-[12.5px]"
-      style={{ borderLeft: `3px solid ${color}` }}
+      className="flex items-center gap-2 px-3.5 py-2.5"
+      style={{ background: `${color}15`, borderBottom: `1px solid ${color}28` }}
     >
-      {children}
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+      <h4 className="font-display text-[13px] font-bold">{title}</h4>
+    </div>
+    <div className="px-3.5 py-2.5" style={{ background: "var(--surface-soft)" }}>
+      <code className="font-mono text-[12px]" style={{ color: "var(--foreground)" }}>
+        {formula}
+      </code>
+    </div>
+    <div className="px-3.5 py-3">
+      <p className="mb-3 text-[11.5px] leading-relaxed" style={{ color: "var(--ink-soft)" }}>
+        {plain}
+      </p>
+      <div className="mb-2.5 flex flex-wrap gap-1.5">
+        {vars.map((v) => (
+          <span
+            key={v.sym}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[9.5px]"
+            style={{ background: `${color}10`, border: `1px solid ${color}30` }}
+          >
+            <b style={{ color }}>{v.sym}</b>
+            <span style={{ color: "var(--ink-soft)" }}>{v.def}</span>
+          </span>
+        ))}
+      </div>
+      <div
+        className="font-mono text-[9.5px]"
+        style={{ color: "var(--ink-mute)" }}
+      >
+        tensor: {io}
+      </div>
     </div>
   </motion.div>
 );
