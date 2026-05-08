@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import DryRunPanel from "@/components/DryRunPanel";
 import { DenseNetArchSection } from "@/components/DenseNetArchSection";
+import { StoolNetHero } from "@/components/StoolNetHero";
 
 type Backbone = "dense" | "resnet";
 type BranchKey = "pos" | "chan" | "type";
@@ -360,6 +361,9 @@ export default function StoolNetDiagram() {
 
   return (
     <div className="min-h-screen bg-background pb-20 text-foreground">
+      {/* Hero */}
+      <StoolNetHero />
+
       {/* Architecture overview section */}
       <DenseNetArchSection />
 

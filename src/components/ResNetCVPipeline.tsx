@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ResNetArchSection } from "@/components/ResNetArchSection";
+import { ResNetHero } from "@/components/ResNetHero";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -1194,6 +1195,9 @@ export default function ResNetCVPipeline() {
 
   return (
     <div className="pb-20">
+      {/* Hero */}
+      <ResNetHero />
+
       {/* Architecture overview */}
       <ResNetArchSection />
 
