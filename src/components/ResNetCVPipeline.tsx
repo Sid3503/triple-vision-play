@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ResNetArchSection } from "@/components/ResNetArchSection";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -8,20 +9,22 @@ const FOLDS = [
   { id: 2, train: 50, val: 13, acc: 53.8, epoch: 14, cls: "amber" as const, badge: null },
   { id: 3, train: 50, val: 13, acc: 61.5, epoch: 11, cls: "amber" as const, badge: null },
   { id: 4, train: 51, val: 12, acc: 58.3, epoch: 14, cls: "amber" as const, badge: null },
-  { id: 5, train: 51, val: 12, acc: 50.0, epoch: 9,  cls: "red"   as const, badge: "Weakest fold" },
+  { id: 5, train: 51, val: 12, acc: 50.0, epoch: 9, cls: "red" as const, badge: "Weakest fold" },
 ];
 
 const TTA_LABELS = ["orig", "H↔", "V↕", "R+15°", "R−15°", "H+V", "R+H", "R+V"];
-const PROB_VALS  = [0.12, 0.22, 0.19, 0.21, 0.14, 0.08, 0.04];
-const BSS        = ["T1", "T2", "T3", "T4", "T5", "T6", "T7"];
+const PROB_VALS = [0.12, 0.22, 0.19, 0.21, 0.14, 0.08, 0.04];
+const BSS = ["T1", "T2", "T3", "T4", "T5", "T6", "T7"];
 
-const MIN_ACC = 45, MAX_ACC = 82, RANGE = MAX_ACC - MIN_ACC;
-const MEAN    = 60.1;
+const MIN_ACC = 45,
+  MAX_ACC = 82,
+  RANGE = MAX_ACC - MIN_ACC;
+const MEAN = 60.1;
 
 const ACC_CLR: Record<string, string> = {
   green: "#1D9E75",
   amber: "#C07A0A",
-  red:   "#B83820",
+  red: "#B83820",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -33,9 +36,7 @@ function sparklinePath(maxEpoch: number, finalAcc: number) {
     const x = (i / n) * 108 + 6;
     const p = i / n;
     const a =
-      28 +
-      (finalAcc - 28) * (1 - Math.exp(-4.5 * p)) +
-      Math.sin(i * 1.8) * 5 * (1 - p * 0.8);
+      28 + (finalAcc - 28) * (1 - Math.exp(-4.5 * p)) + Math.sin(i * 1.8) * 5 * (1 - p * 0.8);
     const y = 45 - ((Math.max(28, Math.min(finalAcc + 5, a)) - 22) / 62) * 38;
     pts.push([x.toFixed(1), Math.max(4, Math.min(46, y)).toFixed(1)]);
   }
@@ -45,9 +46,21 @@ function sparklinePath(maxEpoch: number, finalAcc: number) {
     <>
       <path d={d} fill="none" stroke="var(--cv-ft)" strokeWidth="1.8" strokeLinecap="round" />
       <circle cx={last[0]} cy={last[1]} r="2.5" fill="var(--cv-ft)" />
-      <text x="6"  y="12" fontSize="7" fill="var(--ink-mute)" fontFamily="monospace">acc%</text>
-      <text x="6"  y="47" fontSize="7" fill="var(--ink-mute)" fontFamily="monospace">1</text>
-      <text x={(108 * 0.88 + 6).toFixed(0)} y="47" fontSize="7" fill="var(--ink-mute)" fontFamily="monospace">{maxEpoch}</text>
+      <text x="6" y="12" fontSize="7" fill="var(--ink-mute)" fontFamily="monospace">
+        acc%
+      </text>
+      <text x="6" y="47" fontSize="7" fill="var(--ink-mute)" fontFamily="monospace">
+        1
+      </text>
+      <text
+        x={(108 * 0.88 + 6).toFixed(0)}
+        y="47"
+        fontSize="7"
+        fill="var(--ink-mute)"
+        fontFamily="monospace"
+      >
+        {maxEpoch}
+      </text>
     </>
   );
 }
@@ -75,7 +88,7 @@ function drawHeatmap(canvas: HTMLCanvasElement, seed: number, color: string) {
       y = Math.floor(i / W);
     const dist = Math.sqrt((x - W / 2) ** 2 + (y - H / 2) ** 2) / (W * 0.7);
     const v = Math.min(1, Math.max(0, 1 - dist) * seed + rand() * 0.3) * 255;
-    data.data[i * 4]     = (r / 255) * v;
+    data.data[i * 4] = (r / 255) * v;
     data.data[i * 4 + 1] = (g / 255) * v;
     data.data[i * 4 + 2] = (b / 255) * v;
     data.data[i * 4 + 3] = v * 0.85 + 40;
@@ -119,12 +132,12 @@ function HeatmapCanvas({
 // ─── Pipeline overview strip (mirrors ArchOverview) ───────────────────────────
 
 const PIPELINE_STEPS = [
-  { id: "dataset",  label: "Dataset",   sub: "63 images",       color: "var(--cv-frozen)" },
-  { id: "folds",    label: "5 Folds",   sub: "StratifiedKFold", color: "var(--cv-ft)" },
-  { id: "model",    label: "ResNet50",  sub: "Shared arch",     color: "var(--cv-ft)" },
-  { id: "results",  label: "Val Acc",   sub: "Per fold",        color: "var(--cv-head)" },
-  { id: "tta",      label: "TTA ×8",    sub: "Augmented",       color: "var(--cv-tta)" },
-  { id: "ensemble", label: "Ensemble",  sub: "K-fold avg",      color: "var(--cv-ens)" },
+  { id: "dataset", label: "Dataset", sub: "63 images", color: "var(--cv-frozen)" },
+  { id: "folds", label: "5 Folds", sub: "StratifiedKFold", color: "var(--cv-ft)" },
+  { id: "model", label: "ResNet50", sub: "Shared arch", color: "var(--cv-ft)" },
+  { id: "results", label: "Val Acc", sub: "Per fold", color: "var(--cv-head)" },
+  { id: "tta", label: "TTA ×8", sub: "Augmented", color: "var(--cv-tta)" },
+  { id: "ensemble", label: "Ensemble", sub: "K-fold avg", color: "var(--cv-ens)" },
 ] as const;
 
 function PipelineOverview({ activeId }: { activeId: string }) {
@@ -224,7 +237,9 @@ function RunProgress({
       >
         <motion.div
           className="h-full rounded-full"
-          style={{ background: "linear-gradient(90deg,var(--cv-frozen),var(--cv-ft),var(--cv-head))" }}
+          style={{
+            background: "linear-gradient(90deg,var(--cv-frozen),var(--cv-ft),var(--cv-head))",
+          }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.25, ease: "easeOut" }}
         />
@@ -282,15 +297,10 @@ function FoldColumn({
   const trainPct = (fold.train / total) * 100;
   const heatColor = ACC_CLR[fold.cls];
 
-  const borderColor =
-    fold.id === 1 ? "var(--cv-ft)" : "var(--border)";
+  const borderColor = fold.id === 1 ? "var(--cv-ft)" : "var(--border)";
 
   const accentBg =
-    fold.cls === "green"
-      ? "var(--cv-ft-bg)"
-      : fold.cls === "amber"
-        ? "#FFF8EC"
-        : "#FDF1EF";
+    fold.cls === "green" ? "var(--cv-ft-bg)" : fold.cls === "amber" ? "#FFF8EC" : "#FDF1EF";
 
   return (
     <motion.div
@@ -317,11 +327,7 @@ function FoldColumn({
         className="h-[3px] w-full"
         style={{
           background:
-            fold.id === 1
-              ? "var(--cv-ft)"
-              : fold.id === 5
-                ? "#E8B4A0"
-                : "var(--bg3,#E8E7E1)",
+            fold.id === 1 ? "var(--cv-ft)" : fold.id === 5 ? "#E8B4A0" : "var(--bg3,#E8E7E1)",
         }}
       />
 
@@ -363,7 +369,9 @@ function FoldColumn({
         {/* counts */}
         <div className="font-mono text-[10px]" style={{ color: "var(--ink-mute)" }}>
           <span style={{ color: "var(--cv-ft)" }}>train: {fold.train}</span>
-          <span className="mx-1" style={{ color: "var(--border)" }}>|</span>
+          <span className="mx-1" style={{ color: "var(--border)" }}>
+            |
+          </span>
           <span style={{ color: "#C07A0A" }}>val: {fold.val}</span>
         </div>
 
@@ -379,7 +387,10 @@ function FoldColumn({
         </div>
 
         {/* progress bar */}
-        <div className="h-[3px] overflow-hidden rounded-full" style={{ background: "var(--surface-soft)" }}>
+        <div
+          className="h-[3px] overflow-hidden rounded-full"
+          style={{ background: "var(--surface-soft)" }}
+        >
           <motion.div
             className="h-full rounded-full"
             style={{ background: "linear-gradient(90deg,var(--cv-ft),#55C9A0)" }}
@@ -426,8 +437,15 @@ function FoldColumn({
               </div>
 
               {/* sparkline */}
-              <div className="rounded-xl border p-1.5" style={{ background: accentBg, borderColor: `${heatColor}30` }}>
-                <svg viewBox="0 0 120 52" className="h-10 w-full" preserveAspectRatio="xMidYMid meet">
+              <div
+                className="rounded-xl border p-1.5"
+                style={{ background: accentBg, borderColor: `${heatColor}30` }}
+              >
+                <svg
+                  viewBox="0 0 120 52"
+                  className="h-10 w-full"
+                  preserveAspectRatio="xMidYMid meet"
+                >
                   {sparklinePath(fold.epoch, fold.acc)}
                 </svg>
               </div>
@@ -449,21 +467,15 @@ function FoldColumn({
 
 type PulseTarget = "none" | "ft" | "head";
 
-function ModelArch({
-  freezeOn,
-  pulse,
-}: {
-  freezeOn: boolean;
-  pulse: PulseTarget;
-}) {
+function ModelArch({ freezeOn, pulse }: { freezeOn: boolean; pulse: PulseTarget }) {
   const frozenChipStyle = {
     background: freezeOn ? undefined : "var(--cv-frozen-bg)",
     borderColor: "var(--cv-frozen-bd)",
     color: "var(--cv-frozen)",
   };
 
-  const ftClass  = pulse === "ft"   ? "cv-pulse-ft" : "";
-  const hdClass  = pulse === "head" ? "cv-pulse-hd" : "";
+  const ftClass = pulse === "ft" ? "cv-pulse-ft" : "";
+  const hdClass = pulse === "head" ? "cv-pulse-hd" : "";
 
   const Chip = ({
     label,
@@ -479,10 +491,14 @@ function ModelArch({
     const base =
       "inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-mono text-[11px] font-semibold transition-all duration-300 ";
     const styles: Record<string, React.CSSProperties> = {
-      frozen:     frozenChipStyle,
-      ft:         { background: "var(--cv-ft-bg)",   borderColor: "var(--cv-ft-bd)",   color: "var(--cv-ft)" },
-      head:       { background: "var(--cv-head-bg)", borderColor: "var(--cv-head-bd)", color: "var(--cv-head)" },
-      "head-out": { background: "var(--cv-head)",    borderColor: "var(--cv-head)",    color: "white" },
+      frozen: frozenChipStyle,
+      ft: { background: "var(--cv-ft-bg)", borderColor: "var(--cv-ft-bd)", color: "var(--cv-ft)" },
+      head: {
+        background: "var(--cv-head-bg)",
+        borderColor: "var(--cv-head-bd)",
+        color: "var(--cv-head)",
+      },
+      "head-out": { background: "var(--cv-head)", borderColor: "var(--cv-head)", color: "white" },
     };
     return (
       <div
@@ -497,7 +513,9 @@ function ModelArch({
   };
 
   const Arrow = () => (
-    <span className="text-[11px]" style={{ color: "var(--cv-head-bd)" }}>→</span>
+    <span className="text-[11px]" style={{ color: "var(--cv-head-bd)" }}>
+      →
+    </span>
   );
 
   return (
@@ -522,7 +540,10 @@ function ModelArch({
 
       {/* frozen row */}
       <div className="mb-3 grid grid-cols-[72px_1fr] items-start gap-3">
-        <div className="pt-2 font-mono text-[10px] font-bold uppercase tracking-[.06em]" style={{ color: "var(--cv-frozen)" }}>
+        <div
+          className="pt-2 font-mono text-[10px] font-bold uppercase tracking-[.06em]"
+          style={{ color: "var(--cv-frozen)" }}
+        >
           🔒 Frozen
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -537,7 +558,10 @@ function ModelArch({
 
       {/* fine-tuned row */}
       <div className="mb-3 grid grid-cols-[72px_1fr] items-start gap-3">
-        <div className="pt-2 font-mono text-[10px] font-bold uppercase tracking-[.06em]" style={{ color: "var(--cv-ft)" }}>
+        <div
+          className="pt-2 font-mono text-[10px] font-bold uppercase tracking-[.06em]"
+          style={{ color: "var(--cv-ft)" }}
+        >
           ⚡ Fine-tuned
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -551,7 +575,10 @@ function ModelArch({
 
       {/* head row */}
       <div className="mb-4 grid grid-cols-[72px_1fr] items-start gap-3">
-        <div className="pt-2 font-mono text-[10px] font-bold uppercase tracking-[.06em]" style={{ color: "var(--cv-head)" }}>
+        <div
+          className="pt-2 font-mono text-[10px] font-bold uppercase tracking-[.06em]"
+          style={{ color: "var(--cv-head)" }}
+        >
           ★ Head
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -578,7 +605,10 @@ function ModelArch({
       </div>
 
       {/* training strategy pills */}
-      <div className="flex flex-wrap gap-1.5 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+      <div
+        className="flex flex-wrap gap-1.5 border-t pt-3"
+        style={{ borderColor: "var(--border)" }}
+      >
         <span
           className="font-accent self-center text-[9px] uppercase tracking-[.08em]"
           style={{ color: "var(--ink-mute)" }}
@@ -586,14 +616,14 @@ function ModelArch({
           Strategy:
         </span>
         {[
-          ["🎨 MixUp α=0.3",        "#FFF3E0","#FFCC80","#EF9F27"],
-          ["✂ CutMix p=0.5",        "#FDF0EA","#F0B090","#D85A30"],
-          ["〜 EMA decay=0.999",     "#EBF3FD","#A8CCF2","#378ADD"],
-          ["📊 SWA ep.15/3",         "#EBF3FD","#A8CCF2","#378ADD"],
-          ["📉 CosineWarmRestart",   "#F4EBF9","#D4A8F0","#8B40C4"],
-          ["∇ Grad clip=1.0",        "var(--surface-soft)","var(--border)","var(--ink-soft)"],
-          ["⏹ Early stop p=12",      "var(--surface-soft)","var(--border)","var(--ink-soft)"],
-          ["⚖ LabelSmooth=0.1",      "var(--surface-soft)","var(--border)","var(--ink-soft)"],
+          ["🎨 MixUp α=0.3", "#FFF3E0", "#FFCC80", "#EF9F27"],
+          ["✂ CutMix p=0.5", "#FDF0EA", "#F0B090", "#D85A30"],
+          ["〜 EMA decay=0.999", "#EBF3FD", "#A8CCF2", "#378ADD"],
+          ["📊 SWA ep.15/3", "#EBF3FD", "#A8CCF2", "#378ADD"],
+          ["📉 CosineWarmRestart", "#F4EBF9", "#D4A8F0", "#8B40C4"],
+          ["∇ Grad clip=1.0", "var(--surface-soft)", "var(--border)", "var(--ink-soft)"],
+          ["⏹ Early stop p=12", "var(--surface-soft)", "var(--border)", "var(--ink-soft)"],
+          ["⚖ LabelSmooth=0.1", "var(--surface-soft)", "var(--border)", "var(--ink-soft)"],
         ].map(([lbl, bg, bd, clr]) => (
           <span
             key={lbl}
@@ -616,8 +646,7 @@ function AccuracyBars({ visible }: { visible: boolean }) {
   return (
     <div>
       <div className="mb-4 font-mono text-[11px]" style={{ color: "var(--ink-soft)" }}>
-        Ensemble mean:{" "}
-        <strong style={{ color: "var(--foreground)" }}>60.1% ± 9.3%</strong>
+        Ensemble mean: <strong style={{ color: "var(--foreground)" }}>60.1% ± 9.3%</strong>
         &nbsp;·&nbsp;bar scale 45–82%&nbsp;·&nbsp;
         <span style={{ borderBottom: "1.5px dashed #888" }}>dashed = ensemble mean</span>
       </div>
@@ -664,9 +693,7 @@ function AccuracyBars({ visible }: { visible: boolean }) {
                   animate={{ width: visible ? `${fillPct}%` : "0%" }}
                   transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: fi * 0.08 }}
                 >
-                  <span className="font-display text-[10px] font-bold text-white">
-                    {f.acc}%
-                  </span>
+                  <span className="font-display text-[10px] font-bold text-white">{f.acc}%</span>
                 </motion.div>
               </div>
 
@@ -746,7 +773,10 @@ function TTAGrid({ litItems }: { litItems: Set<string> }) {
 
       <div className="mt-4 flex items-center gap-2">
         <div className="h-px flex-1" style={{ background: "var(--border)" }} />
-        <span className="font-accent px-2 text-[9px] uppercase tracking-[.08em]" style={{ color: "var(--ink-mute)" }}>
+        <span
+          className="font-accent px-2 text-[9px] uppercase tracking-[.08em]"
+          style={{ color: "var(--ink-mute)" }}
+        >
           average 5 fold vectors with equal weight
         </span>
         <div className="h-px flex-1" style={{ background: "var(--border)" }} />
@@ -815,7 +845,10 @@ function EnsembleOutput({ probsVisible }: { probsVisible: boolean }) {
           borderColor: "var(--border)",
         }}
       >
-        <div className="font-display mb-1.5 text-[12px] font-semibold" style={{ color: "var(--ink-soft)" }}>
+        <div
+          className="font-display mb-1.5 text-[12px] font-semibold"
+          style={{ color: "var(--ink-soft)" }}
+        >
           Final 7-Model Ensemble Average
         </div>
         <div className="font-mono mb-3 text-[11px]" style={{ color: "var(--ink-mute)" }}>
@@ -834,7 +867,11 @@ function EnsembleOutput({ probsVisible }: { probsVisible: boolean }) {
               className="rounded-md border px-2.5 py-1 font-mono text-[10px]"
               style={
                 here
-                  ? { background: "var(--cv-ens)", color: "var(--cv-ens-t)", borderColor: "var(--cv-ens)" }
+                  ? {
+                      background: "var(--cv-ens)",
+                      color: "var(--cv-ens-t)",
+                      borderColor: "var(--cv-ens)",
+                    }
                   : { background: "white", color: "var(--ink-soft)", borderColor: "var(--border)" }
               }
             >
@@ -890,13 +927,15 @@ function VarianceModal({ open, onClose }: { open: boolean; onClose: () => void }
               >
                 <p>
                   With only{" "}
-                  <strong style={{ color: "var(--foreground)" }}>12–13 validation images per fold</strong>,
-                  a single misclassified image changes accuracy by{" "}
+                  <strong style={{ color: "var(--foreground)" }}>
+                    12–13 validation images per fold
+                  </strong>
+                  , a single misclassified image changes accuracy by{" "}
                   <strong style={{ color: "var(--foreground)" }}>7–8 percentage points</strong>.
                 </p>
                 <p>
-                  Both Fold 1 (76.9%) and Fold 5 (50.0%) represent valid training runs —
-                  the spread is unavoidable with a 63-image dataset, not a training defect.
+                  Both Fold 1 (76.9%) and Fold 5 (50.0%) represent valid training runs — the spread
+                  is unavoidable with a 63-image dataset, not a training defect.
                 </p>
                 <p>
                   Fold 1 getting ~3 more images correct than Fold 5 fully explains the 26.9 pp gap.
@@ -909,10 +948,12 @@ function VarianceModal({ open, onClose }: { open: boolean; onClose: () => void }
                     color: "var(--foreground)",
                   }}
                 >
-                  ✓ &nbsp;1 image error in val13 = 1/13 ≈ 7.7 pp<br />
-                  ✓ &nbsp;Fold 1→5 gap = ~3–4 images = 26.9 pp<br />
-                  ✓ &nbsp;Ensemble (60.1%) is more stable than any single fold<br />
-                  ✓ &nbsp;Always report the ensemble, never cherry-pick
+                  ✓ &nbsp;1 image error in val13 = 1/13 ≈ 7.7 pp
+                  <br />
+                  ✓ &nbsp;Fold 1→5 gap = ~3–4 images = 26.9 pp
+                  <br />
+                  ✓ &nbsp;Ensemble (60.1%) is more stable than any single fold
+                  <br />✓ &nbsp;Always report the ensemble, never cherry-pick
                 </div>
               </div>
             </div>
@@ -931,7 +972,15 @@ function DatasetRow() {
       {/* thumbnail grid */}
       <div className="grid shrink-0 gap-[3px]" style={{ gridTemplateColumns: "repeat(9,1fr)" }}>
         {Array.from({ length: 63 }).map((_, i) => {
-          const hues = ["#D4C4A4","#C6B592","#B9A880","#AD9C70","#A19060","#958452","#8A7848"];
+          const hues = [
+            "#D4C4A4",
+            "#C6B592",
+            "#B9A880",
+            "#AD9C70",
+            "#A19060",
+            "#958452",
+            "#8A7848",
+          ];
           return (
             <div
               key={i}
@@ -960,7 +1009,11 @@ function DatasetRow() {
         }}
       >
         <strong style={{ color: "var(--foreground)" }}>StratifiedKFold</strong>
-        <br />n_splits = 5<br />shuffle = True<br />random_state = 42
+        <br />
+        n_splits = 5<br />
+        shuffle = True
+        <br />
+        random_state = 42
       </div>
     </div>
   );
@@ -982,7 +1035,11 @@ function Legend() {
   return (
     <div className="mb-5 flex flex-wrap gap-3">
       {items.map(([lbl, bg, bd]) => (
-        <div key={lbl} className="flex items-center gap-1.5 font-mono text-[11px]" style={{ color: "var(--ink-soft)" }}>
+        <div
+          key={lbl}
+          className="flex items-center gap-1.5 font-mono text-[11px]"
+          style={{ color: "var(--ink-soft)" }}
+        >
           <div
             className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
             style={{ background: bg, border: `1.5px solid ${bd}` }}
@@ -997,23 +1054,26 @@ function Legend() {
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function ResNetCVPipeline() {
-  const [simRunning, setSimRunning]     = useState(false);
-  const [epochCounts, setEpochCounts]   = useState<Record<number, number>>({});
-  const [freezeOn, setFreezeOn]         = useState(false);
-  const [ttaRunning, setTtaRunning]     = useState(false);
-  const [litTTA, setLitTTA]             = useState<Set<string>>(new Set());
+  const [simRunning, setSimRunning] = useState(false);
+  const [epochCounts, setEpochCounts] = useState<Record<number, number>>({});
+  const [freezeOn, setFreezeOn] = useState(false);
+  const [ttaRunning, setTtaRunning] = useState(false);
+  const [litTTA, setLitTTA] = useState<Set<string>>(new Set());
   const [varianceOpen, setVarianceOpen] = useState(false);
-  const [hoveredFold, setHoveredFold]   = useState<number | null>(null);
-  const [barsVisible, setBarsVisible]   = useState(false);
+  const [hoveredFold, setHoveredFold] = useState<number | null>(null);
+  const [barsVisible, setBarsVisible] = useState(false);
   const [probsVisible, setProbsVisible] = useState(false);
-  const [pulse, setPulse]               = useState<PulseTarget>("none");
+  const [pulse, setPulse] = useState<PulseTarget>("none");
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     const t1 = setTimeout(() => setBarsVisible(true), 500);
     const t2 = setTimeout(() => setProbsVisible(true), 900);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, []);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
@@ -1027,14 +1087,21 @@ export default function ResNetCVPipeline() {
   }, []);
 
   const startSim = useCallback(() => {
-    if (simRunning) { stopSim(); return; }
+    if (simRunning) {
+      stopSim();
+      return;
+    }
     setSimRunning(true);
     setEpochCounts({});
 
     FOLDS.forEach((f, fi) => {
       const base = fi * 1300;
 
-      timers.current.push(setTimeout(() => { setPulse("none"); }, base));
+      timers.current.push(
+        setTimeout(() => {
+          setPulse("none");
+        }, base),
+      );
 
       timers.current.push(
         setTimeout(() => {
@@ -1060,10 +1127,7 @@ export default function ResNetCVPipeline() {
       timers.current.push(setTimeout(() => tick(1), base + 120));
     });
 
-    const total = FOLDS.reduce(
-      (mx, f, fi) => Math.max(mx, fi * 1300 + f.epoch * 55 + 900),
-      0,
-    );
+    const total = FOLDS.reduce((mx, f, fi) => Math.max(mx, fi * 1300 + f.epoch * 55 + 900), 0);
     timers.current.push(
       setTimeout(() => {
         setSimRunning(false);
@@ -1082,18 +1146,21 @@ export default function ResNetCVPipeline() {
       for (let i = 0; i < 8; i++) {
         const key = `${f.id}_${i}`;
         timers.current.push(
-          setTimeout(() => {
-            setLitTTA((prev) => new Set([...prev, key]));
-            timers.current.push(
-              setTimeout(() => {
-                setLitTTA((prev) => {
-                  const next = new Set(prev);
-                  next.delete(key);
-                  return next;
-                });
-              }, 480),
-            );
-          }, base + i * 110),
+          setTimeout(
+            () => {
+              setLitTTA((prev) => new Set([...prev, key]));
+              timers.current.push(
+                setTimeout(() => {
+                  setLitTTA((prev) => {
+                    const next = new Set(prev);
+                    next.delete(key);
+                    return next;
+                  });
+                }, 480),
+              );
+            },
+            base + i * 110,
+          ),
         );
       }
     });
@@ -1105,159 +1172,174 @@ export default function ResNetCVPipeline() {
   useEffect(() => {
     const t = setTimeout(() => startSim(), 700);
     return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // derive pipeline overview active step
-  const activeOverviewId =
-    simRunning
-      ? "folds"
-      : ttaRunning
-        ? "tta"
-        : probsVisible
-          ? "ensemble"
-          : barsVisible
-            ? "results"
-            : Object.keys(epochCounts).length > 0
-              ? "model"
-              : "dataset";
+  const activeOverviewId = simRunning
+    ? "folds"
+    : ttaRunning
+      ? "tta"
+      : probsVisible
+        ? "ensemble"
+        : barsVisible
+          ? "results"
+          : Object.keys(epochCounts).length > 0
+            ? "model"
+            : "dataset";
 
   // overall training progress
   const totalEpochs = FOLDS.reduce((s, f) => s + f.epoch, 0);
-  const doneEpochs  = Object.values(epochCounts).reduce((s, v) => s + (v as number), 0);
+  const doneEpochs = Object.values(epochCounts).reduce((s, v) => s + (v as number), 0);
 
   return (
-    <div className="mx-auto max-w-[1060px] px-5 pb-20 pt-6">
-      {/* controls — matches DryRunPanel button style */}
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.05 }}
-        className="sticky top-0 z-30 mb-6 rounded-3xl border border-dashed border-border bg-gradient-to-b from-surface to-surface-soft px-5 py-4 backdrop-blur-sm"
-        style={{ position: "relative" }}
-      >
-        <div
-          className="font-accent absolute -top-3 left-6 bg-background px-2.5 text-[11px] uppercase tracking-[0.12em]"
-          style={{ color: "var(--ink-soft)" }}
+    <div className="pb-20">
+      {/* Architecture overview */}
+      <ResNetArchSection />
+
+      {/* Divider */}
+      <div className="mx-auto max-w-[1060px] px-5">
+        <div className="mb-8 flex items-center gap-4">
+          <div className="h-px flex-1" style={{ background: "var(--border)" }} />
+          <span
+            className="font-mono text-[10px] uppercase tracking-[.12em]"
+            style={{ color: "var(--ink-mute)" }}
+          >
+            Interactive Simulation
+          </span>
+          <div className="h-px flex-1" style={{ background: "var(--border)" }} />
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-[1060px] px-5 pt-0">
+        {/* controls — matches DryRunPanel button style */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.05 }}
+          className="sticky top-0 z-30 mb-6 rounded-3xl border border-dashed border-border bg-gradient-to-b from-surface to-surface-soft px-5 py-4 backdrop-blur-sm"
+          style={{ position: "relative" }}
         >
-          Training Controls
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={simRunning ? stopSim : startSim}
-            className="rounded-full border border-border bg-foreground px-5 py-2 font-display text-xs font-semibold text-background transition-all hover:opacity-80"
+          <div
+            className="font-accent absolute -top-3 left-6 bg-background px-2.5 text-[11px] uppercase tracking-[0.12em]"
+            style={{ color: "var(--ink-soft)" }}
           >
-            {simRunning ? "⏹ Stop" : "▶ Simulate Training"}
-          </button>
-
-          <button
-            onClick={() => setFreezeOn((v) => !v)}
-            className="rounded-full border border-border bg-surface px-4 py-2 font-display text-xs text-foreground transition-all hover:border-foreground"
-            style={freezeOn ? { borderColor: "var(--cv-ft)", color: "var(--cv-ft)" } : {}}
-          >
-            🔒 {freezeOn ? "Hide" : "Show"} frozen layers
-          </button>
-
-          <button
-            disabled={ttaRunning}
-            onClick={runTTA}
-            className="rounded-full border border-border bg-surface px-4 py-2 font-display text-xs text-foreground transition-all hover:border-foreground disabled:opacity-50"
-          >
-            ⚡ {ttaRunning ? "Running…" : "Run TTA ×8"}
-          </button>
-
-          <button
-            onClick={() => setVarianceOpen(true)}
-            className="rounded-full border border-border bg-surface px-4 py-2 font-display text-xs text-foreground transition-all hover:border-foreground"
-          >
-            ? Why high variance?
-          </button>
-
-          <div className="min-w-32 flex-1">
-            <RunProgress
-              current={doneEpochs}
-              total={totalEpochs}
-              running={simRunning}
-            />
+            Training Controls
           </div>
-        </div>
-      </motion.section>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={simRunning ? stopSim : startSim}
+              className="rounded-full border border-border bg-foreground px-5 py-2 font-display text-xs font-semibold text-background transition-all hover:opacity-80"
+            >
+              {simRunning ? "⏹ Stop" : "▶ Simulate Training"}
+            </button>
 
-      {/* page title */}
-      <motion.div
-        className="mb-5"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08 }}
-      >
-        <h1 className="font-display mb-1 text-[19px] font-bold tracking-tight">
-          ResNet50 · 5-Fold Cross-Validation Training &amp; Inference Pipeline
-        </h1>
-        <p className="font-mono text-[11px]" style={{ color: "var(--ink-mute)" }}>
-          63 images · 7 BSS classes · StratifiedKFold · TTA ×8 · K-Fold ensemble
-        </p>
-      </motion.div>
+            <button
+              onClick={() => setFreezeOn((v) => !v)}
+              className="rounded-full border border-border bg-surface px-4 py-2 font-display text-xs text-foreground transition-all hover:border-foreground"
+              style={freezeOn ? { borderColor: "var(--cv-ft)", color: "var(--cv-ft)" } : {}}
+            >
+              🔒 {freezeOn ? "Hide" : "Show"} frozen layers
+            </button>
 
-      {/* pipeline overview strip (mirrors ArchOverview) */}
-      <PipelineOverview activeId={activeOverviewId} />
+            <button
+              disabled={ttaRunning}
+              onClick={runTTA}
+              className="rounded-full border border-border bg-surface px-4 py-2 font-display text-xs text-foreground transition-all hover:border-foreground disabled:opacity-50"
+            >
+              ⚡ {ttaRunning ? "Running…" : "Run TTA ×8"}
+            </button>
 
-      <Legend />
+            <button
+              onClick={() => setVarianceOpen(true)}
+              className="rounded-full border border-border bg-surface px-4 py-2 font-display text-xs text-foreground transition-all hover:border-foreground"
+            >
+              ? Why high variance?
+            </button>
 
-      {/* 01 Dataset */}
-      <SectionCard label="01 · Dataset" delay={0.05}>
-        <DatasetRow />
-      </SectionCard>
+            <div className="min-w-32 flex-1">
+              <RunProgress current={doneEpochs} total={totalEpochs} running={simRunning} />
+            </div>
+          </div>
+        </motion.section>
 
-      <Connector label="stratified split · proportional class distribution per fold" />
+        {/* page title */}
+        <motion.div
+          className="mb-5"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+        >
+          <h1 className="font-display mb-1 text-[19px] font-bold tracking-tight">
+            ResNet50 · 5-Fold Cross-Validation Training &amp; Inference Pipeline
+          </h1>
+          <p className="font-mono text-[11px]" style={{ color: "var(--ink-mute)" }}>
+            63 images · 7 BSS classes · StratifiedKFold · TTA ×8 · K-Fold ensemble
+          </p>
+        </motion.div>
 
-      {/* 02 Folds */}
-      <SectionCard label="02 · Five Stratified Folds" delay={0.12}>
-        <div className="grid grid-cols-5 gap-2.5">
-          {FOLDS.map((f) => (
-            <FoldColumn
-              key={f.id}
-              fold={f}
-              epoch={epochCounts[f.id] ?? 0}
-              isHovered={hoveredFold === f.id}
-              isDimmed={hoveredFold !== null && hoveredFold !== f.id}
-              onEnter={() => setHoveredFold(f.id)}
-              onLeave={() => setHoveredFold(null)}
-            />
-          ))}
-        </div>
-      </SectionCard>
+        {/* pipeline overview strip (mirrors ArchOverview) */}
+        <PipelineOverview activeId={activeOverviewId} />
 
-      <Connector label="each fold trains an independent copy of the shared architecture" />
+        <Legend />
 
-      {/* 03 Model */}
-      <SectionCard label="03 · Shared Model Architecture — ResNet50" delay={0.2}>
-        <ModelArch freezeOn={freezeOn} pulse={pulse} />
-      </SectionCard>
+        {/* 01 Dataset */}
+        <SectionCard label="01 · Dataset" delay={0.05}>
+          <DatasetRow />
+        </SectionCard>
 
-      <Connector label="per-fold validation results after early stopping" />
+        <Connector label="stratified split · proportional class distribution per fold" />
 
-      {/* 04 Results */}
-      <SectionCard label="04 · Training Results · Val Accuracy per Fold" delay={0.27}>
-        <AccuracyBars visible={barsVisible} />
-      </SectionCard>
+        {/* 02 Folds */}
+        <SectionCard label="02 · Five Stratified Folds" delay={0.12}>
+          <div className="grid grid-cols-5 gap-2.5">
+            {FOLDS.map((f) => (
+              <FoldColumn
+                key={f.id}
+                fold={f}
+                epoch={epochCounts[f.id] ?? 0}
+                isHovered={hoveredFold === f.id}
+                isDimmed={hoveredFold !== null && hoveredFold !== f.id}
+                onEnter={() => setHoveredFold(f.id)}
+                onLeave={() => setHoveredFold(null)}
+              />
+            ))}
+          </div>
+        </SectionCard>
 
-      <Connector label="inference · test-time augmentation × 8 per fold" />
+        <Connector label="each fold trains an independent copy of the shared architecture" />
 
-      {/* 05 Inference */}
-      <SectionCard label="05 · Inference Pipeline · TTA ×8" delay={0.34}>
-        <TTAGrid litItems={litTTA} />
-      </SectionCard>
+        {/* 03 Model */}
+        <SectionCard label="03 · Shared Model Architecture — ResNet50" delay={0.2}>
+          <ModelArch freezeOn={freezeOn} pulse={pulse} />
+        </SectionCard>
 
-      <Connector label="k-fold ensemble output" />
+        <Connector label="per-fold validation results after early stopping" />
 
-      {/* 06 Ensemble */}
-      <SectionCard label="06 · K-Fold Ensemble Output" delay={0.41}>
-        <div className="flex justify-center">
-          <EnsembleOutput probsVisible={probsVisible} />
-        </div>
-      </SectionCard>
+        {/* 04 Results */}
+        <SectionCard label="04 · Training Results · Val Accuracy per Fold" delay={0.27}>
+          <AccuracyBars visible={barsVisible} />
+        </SectionCard>
 
-      <VarianceModal open={varianceOpen} onClose={() => setVarianceOpen(false)} />
+        <Connector label="inference · test-time augmentation × 8 per fold" />
+
+        {/* 05 Inference */}
+        <SectionCard label="05 · Inference Pipeline · TTA ×8" delay={0.34}>
+          <TTAGrid litItems={litTTA} />
+        </SectionCard>
+
+        <Connector label="k-fold ensemble output" />
+
+        {/* 06 Ensemble */}
+        <SectionCard label="06 · K-Fold Ensemble Output" delay={0.41}>
+          <div className="flex justify-center">
+            <EnsembleOutput probsVisible={probsVisible} />
+          </div>
+        </SectionCard>
+
+        <VarianceModal open={varianceOpen} onClose={() => setVarianceOpen(false)} />
+      </div>
+      {/* /inner max-width wrapper */}
     </div>
   );
 }
