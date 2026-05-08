@@ -62,9 +62,29 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
+  --radius: 0.875rem;
+  --background: oklch(0.985 0.005 95);
+  --foreground: oklch(0.18 0.02 270);
+
+  /* StoolNet brand tokens */
+  --pos: oklch(0.62 0.18 290);
+  --pos-soft: oklch(0.94 0.05 290);
+  --pos-deep: oklch(0.42 0.20 290);
+  --chan: oklch(0.62 0.14 165);
+  --chan-soft: oklch(0.94 0.05 165);
+  --chan-deep: oklch(0.42 0.15 165);
+  --type: oklch(0.74 0.16 70);
+  --type-soft: oklch(0.94 0.06 70);
+  --type-deep: oklch(0.52 0.17 60);
+  --fusion: oklch(0.78 0.14 150);
+  --fusion-soft: oklch(0.94 0.06 150);
+  --head-type: oklch(0.65 0.21 25);
+  --head-shape: oklch(0.62 0.18 250);
+  --head-color: oklch(0.70 0.17 350);
+  --ink-soft: oklch(0.45 0.02 270);
+  --ink-mute: oklch(0.65 0.015 270);
+  --surface: oklch(0.99 0.003 95);
+  --surface-soft: oklch(0.95 0.008 90);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
   --popover: oklch(1 0 0);
