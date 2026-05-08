@@ -1,6 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+
+@theme inline {
+  --font-display: 'Syne', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --color-pos: var(--pos);
+  --color-pos-soft: var(--pos-soft);
+  --color-pos-deep: var(--pos-deep);
+  --color-chan: var(--chan);
+  --color-chan-soft: var(--chan-soft);
+  --color-chan-deep: var(--chan-deep);
+  --color-type-attn: var(--type);
+  --color-type-soft: var(--type-soft);
+  --color-type-deep: var(--type-deep);
+  --color-fusion: var(--fusion);
+  --color-fusion-soft: var(--fusion-soft);
+  --color-head-type: var(--head-type);
+  --color-head-shape: var(--head-shape);
+  --color-head-color: var(--head-color);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-mute: var(--ink-mute);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+}
 
 @custom-variant dark (&:is(.dark *));
 
