@@ -858,81 +858,302 @@ export default function StoolNetDiagram() {
                 ×
               </button>
               <h2 className="font-display text-2xl font-extrabold">Key Equations</h2>
-              <div className="mb-5 mt-1 font-accent text-[11px] uppercase tracking-[0.08em] text-ink-soft">
+              <div className="mb-2 mt-1 font-accent text-[11px] uppercase tracking-[0.08em] text-ink-soft">
                 Triple Attention · Multi-task Loss
               </div>
-              <EqCard
-                title="Position Attention"
-                color="var(--pos)"
-                formula="Attention(Q,K,V) = Softmax(QKᵀ / √d) · V"
-                plain="Each spatial position in the feature map queries every other position. The dot-product similarity (scaled by √d to prevent vanishing gradients) is normalised via Softmax, then used to blend Values — so pixels learn to gather context from semantically similar regions."
-                vars={[
-                  { sym: "Q", def: "query projection" },
-                  { sym: "K", def: "key projection" },
-                  { sym: "V", def: "value projection" },
-                  { sym: "d", def: "channel dim" },
-                ]}
-                io="[B,C,H,W] → [B,C,H,W]"
-              />
-              <EqCard
-                title="Channel Attention"
-                color="var(--chan)"
-                formula="A_c = Softmax(C · Cᵀ)  →  X′ = A_c · X"
-                plain="Feature channels are compared against each other. The resulting C×C correlation matrix encodes which channels co-activate. Multiplying by X re-weights each channel by how much it correlates with all others — boosting semantically related features."
-                vars={[
-                  { sym: "C", def: "feature map reshaped [C × HW]" },
-                  { sym: "A_c", def: "C×C correlation matrix" },
-                  { sym: "X′", def: "re-weighted output" },
-                ]}
-                io="[B,C,H,W] → [B,C,H,W]"
-              />
-              <EqCard
-                title="Type Attention"
-                color="var(--type)"
-                formula="MS = Σₖ SE(Convₖ(x)),  k ∈ {3, 5, 7}"
-                plain="Three parallel convolutions capture texture at different scales (fine/medium/coarse). Each scale is recalibrated by a Squeeze-and-Excite block. A sigmoid continuity gate then enforces that BSS Types 1–7 form an ordinal sequence — hard stool to liquid."
-                vars={[
-                  { sym: "Convₖ", def: "conv with kernel k" },
-                  { sym: "SE", def: "squeeze-excite block" },
-                  { sym: "σ", def: "sigmoid continuity gate" },
-                ]}
-                io="[B,C,H,W] → [B,C,H,W]"
-              />
-              <EqCard
-                title="Residual (all branches)"
-                color="var(--foreground)"
-                formula="out = γ · attention(x) + x,   γ₀ = 0.1"
-                plain="Each attention branch blends its output back with the original input. γ is a learnable scalar initialised at 0.1 — early training barely alters backbone features, letting the attention modules warm up gradually without destabilising pretrained weights."
-                vars={[
-                  { sym: "γ", def: "learnable scalar (init 0.1)" },
-                  { sym: "x", def: "backbone feature map" },
-                ]}
-                io="[B,C,H,W] → [B,C,H,W]"
-              />
-              <EqCard
-                title="Fusion"
-                color="var(--fusion)"
-                formula="F = (P + C + T) / 3"
-                plain="The three attention outputs are averaged element-wise with equal weights. Simple averaging lets the loss function — via backprop — determine which branch contributes most, rather than imposing a fixed weighting."
-                vars={[
-                  { sym: "P", def: "position branch output" },
-                  { sym: "C", def: "channel branch output" },
-                  { sym: "T", def: "type branch output" },
-                ]}
-                io="3 × [B,C,H,W] → [B,C,H,W]"
-              />
-              <EqCard
-                title="Combined Loss"
-                color="var(--head-type)"
-                formula="L = 2.0·L_type + 0.8·L_shape + 0.1·L_color"
-                plain="BSS type is the primary clinical goal (×2 weight, Focal Loss to handle class imbalance). Stool shape is a useful proxy task (×0.8). Color is auxiliary — it prevents overfitting and adds a weak regularisation signal (×0.1). All three tasks jointly train the shared attention features."
-                vars={[
-                  { sym: "L_type", def: "Focal Loss γ=2.0, ls=0.1" },
-                  { sym: "L_shape", def: "CrossEntropy" },
-                  { sym: "L_color", def: "CrossEntropy" },
-                ]}
-                io="logits + labels → scalar"
-              />
+              {/* backbone context badge */}
+              <div className="mb-5 flex items-center gap-2">
+                <span
+                  className="rounded-full px-2.5 py-0.5 font-mono text-[10px] font-semibold"
+                  style={{
+                    background: "var(--pos-soft)",
+                    border: "1px solid var(--pos)",
+                    color: "var(--pos-deep)",
+                  }}
+                >
+                  {backbone === "dense" ? "DenseNet121" : "ResNet50"} · C={BACKBONE[backbone].dim}
+                </span>
+                <span className="font-mono text-[9.5px]" style={{ color: "var(--ink-mute)" }}>
+                  Trace uses B=1 · H=W=7
+                </span>
+              </div>
+
+              {/* ── Position Attention ── */}
+              {(() => {
+                const C = BACKBONE[backbone].dim;
+                const HW = 49; // 7×7
+                return (
+                  <EqCard
+                    title="Position Attention"
+                    color="var(--pos)"
+                    formula="Attention(Q,K,V) = Softmax(QKᵀ / √d) · V"
+                    plain="Each spatial position queries every other. Dot-product similarity (scaled by √d) is normalised via Softmax, then blends Values — pixels gather context from semantically similar regions."
+                    vars={[
+                      { sym: "Q", def: "query projection" },
+                      { sym: "K", def: "key projection" },
+                      { sym: "V", def: "value projection" },
+                      { sym: "d", def: "channel dim" },
+                    ]}
+                    io={`[1,${C},7,7] → [1,${C},7,7]`}
+                    dryRun={[
+                      {
+                        op: "x  (backbone out)",
+                        shape: `[1, ${C}, 7, 7]`,
+                        note: "input feature map",
+                      },
+                      {
+                        op: "flatten H×W",
+                        shape: `[1, ${C}, ${HW}]`,
+                        note: `7×7=${HW} tokens`,
+                        changed: true,
+                      },
+                      { op: "Q = Conv1×1(x)", shape: `[1, ${C}, ${HW}]`, note: "query" },
+                      { op: "K = Conv1×1(x)", shape: `[1, ${C}, ${HW}]`, note: "key" },
+                      { op: "V = Conv1×1(x)", shape: `[1, ${C}, ${HW}]`, note: "value" },
+                      {
+                        op: "QKᵀ",
+                        shape: `[1, ${HW}, ${HW}]`,
+                        note: `${HW}×${HW} spatial affinity`,
+                        changed: true,
+                      },
+                      {
+                        op: "÷√${C}, Softmax",
+                        shape: `[1, ${HW}, ${HW}]`,
+                        note: "attention weights",
+                      },
+                      { op: "weights × V", shape: `[1, ${C}, ${HW}]`, changed: true },
+                      { op: "reshape spatial", shape: `[1, ${C}, 7, 7]`, changed: true },
+                      {
+                        op: "γ · attn + x",
+                        shape: `[1, ${C}, 7, 7]`,
+                        note: "γ=0.1 residual blend",
+                      },
+                    ]}
+                  />
+                );
+              })()}
+
+              {/* ── Channel Attention ── */}
+              {(() => {
+                const C = BACKBONE[backbone].dim;
+                const HW = 49;
+                return (
+                  <EqCard
+                    title="Channel Attention"
+                    color="var(--chan)"
+                    formula="A_c = Softmax(C · Cᵀ)  →  X′ = A_c · X"
+                    plain="Feature channels are compared against each other. The C×C correlation matrix encodes which channels co-activate. Multiplying by X re-weights each channel by how much it correlates with all others."
+                    vars={[
+                      { sym: "C", def: `feature map reshaped [${C} × ${HW}]` },
+                      { sym: "A_c", def: `${C}×${C} correlation matrix` },
+                      { sym: "X′", def: "re-weighted output" },
+                    ]}
+                    io={`[1,${C},7,7] → [1,${C},7,7]`}
+                    dryRun={[
+                      {
+                        op: "x  (backbone out)",
+                        shape: `[1, ${C}, 7, 7]`,
+                        note: "input feature map",
+                      },
+                      {
+                        op: "reshape C×HW",
+                        shape: `[1, ${C}, ${HW}]`,
+                        note: "flatten spatial",
+                        changed: true,
+                      },
+                      {
+                        op: "C × Cᵀ",
+                        shape: `[1, ${C}, ${C}]`,
+                        note: `${((C * C) / 1e6).toFixed(1)}M entries`,
+                        changed: true,
+                      },
+                      {
+                        op: "Softmax (over C)",
+                        shape: `[1, ${C}, ${C}]`,
+                        note: "normalised correlation",
+                      },
+                      {
+                        op: "A_c × X",
+                        shape: `[1, ${C}, ${HW}]`,
+                        note: "re-weighted channels",
+                        changed: true,
+                      },
+                      { op: "reshape spatial", shape: `[1, ${C}, 7, 7]`, changed: true },
+                      {
+                        op: "γ · attn + x",
+                        shape: `[1, ${C}, 7, 7]`,
+                        note: "γ=0.1 residual blend",
+                      },
+                    ]}
+                  />
+                );
+              })()}
+
+              {/* ── Type Attention ── */}
+              {(() => {
+                const C = BACKBONE[backbone].dim;
+                return (
+                  <EqCard
+                    title="Type Attention"
+                    color="var(--type)"
+                    formula="MS = Σₖ SE(Convₖ(x)),  k ∈ {3, 5, 7}"
+                    plain="Three parallel convolutions capture texture at fine/medium/coarse scale. Each is recalibrated by Squeeze-and-Excite. A sigmoid continuity gate enforces BSS Types 1–7 ordinal ordering."
+                    vars={[
+                      { sym: "Convₖ", def: "conv with kernel k" },
+                      { sym: "SE", def: "squeeze-excite block" },
+                      { sym: "σ", def: "sigmoid continuity gate" },
+                    ]}
+                    io={`[1,${C},7,7] → [1,${C},7,7]`}
+                    dryRun={[
+                      { op: "x  (backbone out)", shape: `[1, ${C}, 7, 7]` },
+                      { op: "Conv3×3(x)", shape: `[1, ${C}, 7, 7]`, note: "fine texture" },
+                      { op: "Conv5×5(x)", shape: `[1, ${C}, 7, 7]`, note: "medium texture" },
+                      { op: "Conv7×7(x)", shape: `[1, ${C}, 7, 7]`, note: "coarse texture" },
+                      {
+                        op: "SE: GAP each",
+                        shape: `[1, ${C}, 1, 1]`,
+                        note: "global avg pool",
+                        changed: true,
+                      },
+                      {
+                        op: "SE: FC→σ weight",
+                        shape: `[1, ${C}]`,
+                        note: "scale weights",
+                        changed: true,
+                      },
+                      {
+                        op: "weight × conv_k",
+                        shape: `[1, ${C}, 7, 7]`,
+                        note: "per branch",
+                        changed: true,
+                      },
+                      { op: "Σ 3 branches", shape: `[1, ${C}, 7, 7]`, note: "multi-scale sum" },
+                      {
+                        op: "depthwise conv",
+                        shape: `[1, ${C}, 7, 7]`,
+                        note: "texture refinement",
+                      },
+                      {
+                        op: "sigmoid gate",
+                        shape: `[1, 1, 7, 7]`,
+                        note: "ordinal 1→7",
+                        changed: true,
+                      },
+                      { op: "gate × features", shape: `[1, ${C}, 7, 7]`, changed: true },
+                      {
+                        op: "γ · attn + x",
+                        shape: `[1, ${C}, 7, 7]`,
+                        note: "γ=0.1 residual blend",
+                      },
+                    ]}
+                  />
+                );
+              })()}
+
+              {/* ── Residual ── */}
+              {(() => {
+                const C = BACKBONE[backbone].dim;
+                return (
+                  <EqCard
+                    title="Residual (all branches)"
+                    color="var(--foreground)"
+                    formula="out = γ · attention(x) + x,   γ₀ = 0.1"
+                    plain="Each branch blends its output with the original input. γ starts at 0.1 — the module barely alters backbone features early on, warming up gradually without destabilising pretrained weights."
+                    vars={[
+                      { sym: "γ", def: "learnable scalar (init 0.1)" },
+                      { sym: "x", def: "backbone feature map" },
+                    ]}
+                    io={`[1,${C},7,7] → [1,${C},7,7]`}
+                    dryRun={[
+                      { op: "attn_out = attn(x)", shape: `[1, ${C}, 7, 7]` },
+                      { op: "γ · attn_out", shape: `[1, ${C}, 7, 7]`, note: "γ=0.1 at init" },
+                      { op: "x  (backbone)", shape: `[1, ${C}, 7, 7]` },
+                      {
+                        op: "γ·a + x → out",
+                        shape: `[1, ${C}, 7, 7]`,
+                        note: "residual blend",
+                        changed: true,
+                      },
+                    ]}
+                  />
+                );
+              })()}
+
+              {/* ── Fusion ── */}
+              {(() => {
+                const C = BACKBONE[backbone].dim;
+                return (
+                  <EqCard
+                    title="Fusion"
+                    color="var(--fusion)"
+                    formula="F = (P + C + T) / 3"
+                    plain="Three attention outputs are averaged element-wise. Simple averaging lets backprop decide which branch contributes most, rather than imposing a fixed weighting."
+                    vars={[
+                      { sym: "P", def: "position branch output" },
+                      { sym: "C", def: "channel branch output" },
+                      { sym: "T", def: "type branch output" },
+                    ]}
+                    io={`3 × [1,${C},7,7] → [1,${C}]`}
+                    dryRun={[
+                      { op: "P  (pos out)", shape: `[1, ${C}, 7, 7]` },
+                      { op: "C  (chan out)", shape: `[1, ${C}, 7, 7]` },
+                      { op: "T  (type out)", shape: `[1, ${C}, 7, 7]` },
+                      {
+                        op: "(P+C+T) / 3",
+                        shape: `[1, ${C}, 7, 7]`,
+                        note: "element-wise mean",
+                        changed: true,
+                      },
+                      {
+                        op: "GAP  7×7 → 1×1",
+                        shape: `[1, ${C}, 1, 1]`,
+                        note: "global avg pool",
+                        changed: true,
+                      },
+                      { op: "flatten", shape: `[1, ${C}]`, note: "feature vector", changed: true },
+                    ]}
+                  />
+                );
+              })()}
+
+              {/* ── Combined Loss ── */}
+              {(() => {
+                const C = BACKBONE[backbone].dim;
+                return (
+                  <EqCard
+                    title="Combined Loss"
+                    color="var(--head-type)"
+                    formula="L = 2.0·L_type + 0.8·L_shape + 0.1·L_color"
+                    plain="BSS type is the primary clinical goal (×2 weight, Focal Loss for class imbalance). Shape is a proxy task (×0.8). Color is auxiliary — prevents overfitting (×0.1). All three train the shared attention features jointly."
+                    vars={[
+                      { sym: "L_type", def: "Focal Loss γ=2.0, ls=0.1" },
+                      { sym: "L_shape", def: "CrossEntropy" },
+                      { sym: "L_color", def: "CrossEntropy" },
+                    ]}
+                    io="logits + labels → scalar"
+                    dryRun={[
+                      { op: "fused vector", shape: `[1, ${C}]`, note: "from Fusion" },
+                      { op: "Head1: 512→256→7", shape: "[1, 7]", note: "BSS types", changed: true },
+                      { op: "Head2: 256→4", shape: "[1, 4]", note: "shape", changed: true },
+                      { op: "Head3: 128→2", shape: "[1, 2]", note: "color", changed: true },
+                      {
+                        op: "L_type (Focal)",
+                        shape: "scalar",
+                        note: "class-imbalance aware",
+                        changed: true,
+                      },
+                      { op: "L_shape (CE)", shape: "scalar" },
+                      { op: "L_color (CE)", shape: "scalar" },
+                      {
+                        op: "2.0·Lt+0.8·Ls+0.1·Lc",
+                        shape: "scalar",
+                        note: "final loss",
+                        changed: true,
+                      },
+                    ]}
+                  />
+                );
+              })()}
             </motion.aside>
           </>
         )}
@@ -1138,6 +1359,79 @@ function ReferencesSection() {
   );
 }
 
+// ── Dry-run step type ──────────────────────────────────────────────────────
+type DryStep = {
+  op: string;
+  shape: string;
+  note?: string;
+  /** mark a shape that visibly changes from the previous step */
+  changed?: boolean;
+};
+
+// ── Dry-run trace sub-component ────────────────────────────────────────────
+function DryRunTrace({ steps, color }: { steps: DryStep[]; color: string }) {
+  return (
+    <div
+      className="px-3.5 pb-3 pt-2"
+      style={{ borderTop: `1px solid ${color}22`, background: `${color}05` }}
+    >
+      <div
+        className="mb-2 font-mono text-[9px] font-bold uppercase tracking-[.1em]"
+        style={{ color }}
+      >
+        ▸ Tensor trace · step-by-step
+      </div>
+      <div className="relative pl-5">
+        {/* vertical timeline rule */}
+        <div
+          className="absolute left-[7px] top-0 bottom-0 w-px"
+          style={{ background: `${color}30` }}
+        />
+        {steps.map((s, i) => (
+          <div key={i} className="relative mb-1.5 flex items-start gap-2">
+            {/* timeline dot */}
+            <div
+              className="absolute -left-[calc(1.25rem-7px)] mt-[3px] h-2 w-2 shrink-0 rounded-full border-2"
+              style={{
+                borderColor: s.changed ? color : `${color}55`,
+                background: s.changed ? color : "var(--background)",
+              }}
+            />
+            {/* step index */}
+            <span
+              className="shrink-0 font-mono text-[9px]"
+              style={{ color: `${color}80`, minWidth: "1.1rem" }}
+            >
+              {i + 1}
+            </span>
+            {/* operation */}
+            <span
+              className="shrink-0 font-mono text-[9.5px]"
+              style={{ color: "var(--ink-soft)", minWidth: "7rem" }}
+            >
+              {s.op}
+            </span>
+            {/* shape — highlighted when it changes */}
+            <span
+              className="font-mono text-[9.5px] font-bold"
+              style={{ color: s.changed ? color : "var(--ink-mute)" }}
+            >
+              {s.shape}
+            </span>
+            {/* note */}
+            {s.note && (
+              <span className="font-mono text-[8.5px]" style={{ color: "var(--ink-mute)" }}>
+                {s.note}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── EqCard ─────────────────────────────────────────────────────────────────
 const EqCard = ({
   title,
   color,
@@ -1145,6 +1439,7 @@ const EqCard = ({
   plain,
   vars,
   io,
+  dryRun,
 }: {
   title: string;
   color: string;
@@ -1152,6 +1447,7 @@ const EqCard = ({
   plain: string;
   vars: { sym: string; def: string }[];
   io: string;
+  dryRun?: DryStep[];
 }) => (
   <motion.div
     initial={{ opacity: 0, x: 10 }}
@@ -1160,6 +1456,7 @@ const EqCard = ({
     className="mb-4 overflow-hidden rounded-xl border"
     style={{ borderColor: `${color}35` }}
   >
+    {/* header */}
     <div
       className="flex items-center gap-2 px-3.5 py-2.5"
       style={{ background: `${color}15`, borderBottom: `1px solid ${color}28` }}
@@ -1167,11 +1464,13 @@ const EqCard = ({
       <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
       <h4 className="font-display text-[13px] font-bold">{title}</h4>
     </div>
+    {/* formula */}
     <div className="px-3.5 py-2.5" style={{ background: "var(--surface-soft)" }}>
       <code className="font-mono text-[12px]" style={{ color: "var(--foreground)" }}>
         {formula}
       </code>
     </div>
+    {/* explanation + vars */}
     <div className="px-3.5 py-3">
       <p className="mb-3 text-[11.5px] leading-relaxed" style={{ color: "var(--ink-soft)" }}>
         {plain}
@@ -1192,5 +1491,7 @@ const EqCard = ({
         tensor: {io}
       </div>
     </div>
+    {/* dry-run trace */}
+    {dryRun && <DryRunTrace steps={dryRun} color={color} />}
   </motion.div>
 );
